@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 // ========================================
 // CONFIGURATION - UPDATE THIS URL
 // ========================================
@@ -19,6 +11,27 @@ var currentUserType = "";
 var mobilesData = [];
 var imeiStockData = [];
 var historyDataTable = null;
+
+// ========================================
+// TAB MANAGEMENT FUNCTIONS
+// ========================================
+function switchTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    // Show selected tab content
+    document.getElementById(tabName).classList.add('active');
+    
+    // Activate selected tab button
+    document.getElementById(tabName + 'Btn').classList.add('active');
+}
 
 // ========================================
 // API HELPER FUNCTION
@@ -180,6 +193,11 @@ async function handleFormSubmit(event) {
     var obj = {};
     formData.forEach(function (value, key) { obj[key] = value; });
     
+    // Make IMEI 2 optional - if empty, set to empty string
+    if (!obj.imei2) {
+        obj.imei2 = "";
+    }
+    
     try {
         const response = await callAPI('processForm', obj);
         Swal.fire({ 
@@ -237,6 +255,89 @@ async function fetchPrice() {
         }
     } catch (err) {
         console.error('Error fetching price:', err);
+    }
+}
+
+// ========================================
+// ADD CUSTOMER/MOBILE MODAL FUNCTIONS
+// ========================================
+function openAddModal() {
+    document.getElementById("adminModal").style.display = "flex";
+    // Reset forms and set to customer tab by default
+    document.getElementById("customerForm").reset();
+    document.getElementById("mobileForm").reset();
+    document.getElementById("mobileForm").removeAttribute("data-row");
+    switchTab('customerTab');
+}
+
+function closeAddModal() {
+    document.getElementById("adminModal").style.display = "none";
+}
+
+function applyCustomerToForm() {
+    const customerData = {
+        name: document.getElementById("customerName").value,
+        address: document.getElementById("customerAddress").value,
+        mobile: document.getElementById("customerMobile").value,
+        altMobile: document.getElementById("customerAltMobile").value
+    };
+    
+    // Fill the invoice form with customer data
+    if (customerData.name) {
+        document.querySelector('input[name="name"]').value = customerData.name;
+    }
+    if (customerData.address) {
+        document.querySelector('input[name="address"]').value = customerData.address;
+    }
+    if (customerData.mobile) {
+        document.querySelector('input[name="contact"]').value = customerData.mobile;
+    }
+    if (customerData.altMobile) {
+        document.querySelector('input[name="alternativeContact"]').value = customerData.altMobile;
+    }
+    
+    closeAddModal();
+    Swal.fire("Success", "Customer details added to invoice form!", "success");
+}
+
+async function submitMobile(e) {
+    e.preventDefault();
+    var mobile = {
+        setName: document.getElementById("mobileSetName").value,
+        variant: document.getElementById("mobileVariant").value,
+        price: parseFloat(document.getElementById("mobilePrice").value) || 0,
+        imeis: document.getElementById("mobileImeis").value.split('\n').filter(imei => imei.trim() !== '')
+    };
+    
+    if (mobile.imeis.length === 0) {
+        Swal.fire("Error", "Please enter at least one IMEI number", "error");
+        return;
+    }
+    
+    var rowIndex = document.getElementById("mobileForm").getAttribute("data-row");
+    
+    try {
+        if (rowIndex) {
+            const res = await callAPI('updateMobileRecord', { rowIndex: parseInt(rowIndex), mobile });
+            Swal.fire("Success", res, "success");
+            document.getElementById("mobileForm").removeAttribute("data-row");
+        } else {
+            const res = await callAPI('addMobile', { mobile });
+            Swal.fire("Success", res, "success");
+            
+            // Refresh set names
+            const sets = await callAPI('getSetNames');
+            var options = "<option value=''>Select Set</option>";
+            sets.forEach(function(s) { 
+                options += "<option value='" + s + "'>" + s + "</option>"; 
+            });
+            document.getElementById("setNameDropdown").innerHTML = options;
+        }
+        
+        closeAddModal();
+        showStock();
+    } catch (err) {
+        Swal.fire("Error", err.message, "error");
     }
 }
 
@@ -321,6 +422,7 @@ function collectInvoiceData() {
         name: document.querySelector('input[name="name"]').value,
         address: document.querySelector('input[name="address"]').value,
         contact: document.querySelector('input[name="contact"]').value,
+        alternativeContact: document.querySelector('input[name="alternativeContact"]').value,
         setName: document.getElementById("setNameDropdown").value,
         variant: document.getElementById("variantDropdown").value,
         modelNo: document.querySelector('input[name="modelNo"]').value,
@@ -694,59 +796,6 @@ function logout() {
 // ========================================
 // ADMIN MOBILE MANAGEMENT
 // ========================================
-function openAddMobileModal() {
-    document.getElementById("adminModal").style.display = "flex";
-    document.getElementById("mobileForm").reset();
-    document.getElementById("mobileForm").removeAttribute("data-row");
-}
-
-function closeAddMobileModal() {
-    document.getElementById("adminModal").style.display = "none";
-    document.getElementById("mobileForm").reset();
-    document.getElementById("mobileForm").removeAttribute("data-row");
-}
-
-async function submitMobile(e) {
-    e.preventDefault();
-    var mobile = {
-        setName: document.getElementById("mobileSetName").value,
-        variant: document.getElementById("mobileVariant").value,
-        price: parseFloat(document.getElementById("mobilePrice").value) || 0,
-        imeis: document.getElementById("mobileImeis").value.split('\n').filter(imei => imei.trim() !== '')
-    };
-    
-    if (mobile.imeis.length === 0) {
-        Swal.fire("Error", "Please enter at least one IMEI number", "error");
-        return;
-    }
-    
-    var rowIndex = document.getElementById("mobileForm").getAttribute("data-row");
-    
-    try {
-        if (rowIndex) {
-            const res = await callAPI('updateMobileRecord', { rowIndex: parseInt(rowIndex), mobile });
-            Swal.fire("Success", res, "success");
-            document.getElementById("mobileForm").removeAttribute("data-row");
-        } else {
-            const res = await callAPI('addMobile', { mobile });
-            Swal.fire("Success", res, "success");
-            
-            // Refresh set names
-            const sets = await callAPI('getSetNames');
-            var options = "<option value=''>Select Set</option>";
-            sets.forEach(function(s) { 
-                options += "<option value='" + s + "'>" + s + "</option>"; 
-            });
-            document.getElementById("setNameDropdown").innerHTML = options;
-        }
-        
-        closeAddMobileModal();
-        showStock();
-    } catch (err) {
-        Swal.fire("Error", err.message, "error");
-    }
-}
-
 async function showStock() {
     document.getElementById("invoiceForm").style.display = "none";
     document.getElementById("historySection").style.display = "none";
@@ -805,7 +854,9 @@ function filterStock() {
 }
 
 async function editMobile(rowIndex, setName, variant, price) {
-    document.getElementById("adminModal").style.display = "flex";
+    openAddModal();
+    switchTab('mobileTab');
+    
     document.getElementById("mobileSetName").value = setName;
     document.getElementById("mobileVariant").value = variant;
     document.getElementById("mobilePrice").value = price;
