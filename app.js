@@ -13,27 +13,6 @@ var imeiStockData = [];
 var historyDataTable = null;
 
 // ========================================
-// TAB MANAGEMENT FUNCTIONS
-// ========================================
-function switchTab(tabName) {
-    // Hide all tab contents
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    // Remove active class from all tab buttons
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.classList.remove('active');
-    });
-    
-    // Show selected tab content
-    document.getElementById(tabName).classList.add('active');
-    
-    // Activate selected tab button
-    document.getElementById(tabName + 'Btn').classList.add('active');
-}
-
-// ========================================
 // API HELPER FUNCTION
 // ========================================
 async function callAPI(action, data = {}) {
@@ -259,52 +238,33 @@ async function fetchPrice() {
 }
 
 // ========================================
-// ADD CUSTOMER/MOBILE MODAL FUNCTIONS
+// ADD MOBILE MODAL FUNCTIONS
 // ========================================
-function openAddModal() {
+function openAddMobileModal() {
     document.getElementById("adminModal").style.display = "flex";
-    // Reset forms and set to customer tab by default
-    document.getElementById("customerForm").reset();
+    document.getElementById("mobileModalTitle").textContent = "Add Mobile";
     document.getElementById("mobileForm").reset();
     document.getElementById("mobileForm").removeAttribute("data-row");
-    switchTab('customerTab');
 }
 
-function closeAddModal() {
+function closeAddMobileModal() {
     document.getElementById("adminModal").style.display = "none";
 }
 
-function applyCustomerToForm() {
-    const customerData = {
-        name: document.getElementById("customerName").value,
-        address: document.getElementById("customerAddress").value,
-        mobile: document.getElementById("customerMobile").value,
-        altMobile: document.getElementById("customerAltMobile").value
-    };
-    
-    // Fill the invoice form with customer data
-    if (customerData.name) {
-        document.querySelector('input[name="name"]').value = customerData.name;
-    }
-    if (customerData.address) {
-        document.querySelector('input[name="address"]').value = customerData.address;
-    }
-    if (customerData.mobile) {
-        document.querySelector('input[name="contact"]').value = customerData.mobile;
-    }
-    if (customerData.altMobile) {
-        document.querySelector('input[name="alternativeContact"]').value = customerData.altMobile;
-    }
-    
-    closeAddModal();
-    Swal.fire("Success", "Customer details added to invoice form!", "success");
-}
-
+// ========================================
+//   SUBMIT MOBILE (CORRECTED)
+// ========================================
 async function submitMobile(e) {
     e.preventDefault();
+    
+    // Collect all data from the form with correct element IDs
     var mobile = {
         setName: document.getElementById("mobileSetName").value,
         variant: document.getElementById("mobileVariant").value,
+        customerName: document.getElementById("mobileCustomerName").value || "", // Optional
+        customerAddress: document.getElementById("mobileCustomerAddress").value || "", // Optional
+        customerNumber: document.getElementById("mobileCustomerNumber").value || "", // Optional
+        alternativeNumber: document.getElementById("mobileAlternativeNumber").value || "", // Optional
         price: parseFloat(document.getElementById("mobilePrice").value) || 0,
         imeis: document.getElementById("mobileImeis").value.split('\n').filter(imei => imei.trim() !== '')
     };
@@ -334,7 +294,7 @@ async function submitMobile(e) {
             document.getElementById("setNameDropdown").innerHTML = options;
         }
         
-        closeAddModal();
+        closeAddMobileModal();
         showStock();
     } catch (err) {
         Swal.fire("Error", err.message, "error");
@@ -841,7 +801,7 @@ function renderStock(mobiles) {
                 <small class="text-gray-600">Based on IMEI count</small>
             </div>
             <div class="space-x-2">
-                <button class="bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-2 rounded" onclick="editMobile(${m.rowIndex},'${m.setName}','${m.variant}',${m.price})">Edit</button>
+                <button class="bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-2 rounded" onclick="editMobile(${m.rowIndex},'${m.setName}','${m.variant}',${m.price},'${m.customerName || ''}','${m.customerAddress || ''}','${m.customerNumber || ''}','${m.alternativeNumber || ''}')">Edit</button>
                 <button class="bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded" onclick="deleteMobileRecord(${m.rowIndex})">Delete</button>
             </div>
         `;
@@ -853,13 +813,17 @@ function filterStock() {
     renderStock(mobilesData);
 }
 
-async function editMobile(rowIndex, setName, variant, price) {
-    openAddModal();
-    switchTab('mobileTab');
+async function editMobile(rowIndex, setName, variant, price, customerName = "", customerAddress = "", customerNumber = "", alternativeNumber = "") {
+    openAddMobileModal();
+    document.getElementById("mobileModalTitle").textContent = "Edit Mobile";
     
     document.getElementById("mobileSetName").value = setName;
     document.getElementById("mobileVariant").value = variant;
     document.getElementById("mobilePrice").value = price;
+    document.getElementById("mobileCustomerName").value = customerName || "";
+    document.getElementById("mobileCustomerAddress").value = customerAddress || "";
+    document.getElementById("mobileCustomerNumber").value = customerNumber || "";
+    document.getElementById("mobileAlternativeNumber").value = alternativeNumber || "";
     document.getElementById("mobileForm").setAttribute("data-row", rowIndex);
     
     try {
@@ -929,6 +893,10 @@ function renderImeiStock(imeiData) {
             <td>${row.variant}</td>
             <td><code>${row.imei}</code></td>
             <td><span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${row.status}</span></td>
+            <td>${row.customerName || '-'}</td>
+            <td>${row.customerAddress || '-'}</td>
+            <td>${row.customerNumber || '-'}</td>
+            <td>${row.alternativeNumber || '-'}</td>
             <td>${row.dateAdded}</td>
         `;
         tbody.appendChild(tr);
@@ -937,7 +905,19 @@ function renderImeiStock(imeiData) {
         responsive: true, 
         autoWidth: false, 
         width: "100%",
-        pageLength: 25
+        pageLength: 25,
+        dom: '<"flex justify-between items-center mb-4"lf>rt<"flex justify-between items-center mt-4"ip>',
+        language: {
+            search: "Search:",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            paginate: {
+                first: "First",
+                last: "Last",
+                next: "Next",
+                previous: "Previous"
+            }
+        }
     });
 }
 
